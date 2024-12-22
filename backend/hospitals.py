@@ -2,29 +2,11 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import httpx
-import uvicorn
+import os
 from typing import List, Optional
-import json
-
-#Input is Location Coordinates
-class Location(BaseModel):
-    latitude: float
-    longitude: float
-
-#Atributes of hospitals
-class HospitalResponse(BaseModel):
-    name: str
-    address: str
-    rating: Optional[float]
-    user_ratings_total: Optional[int]
-
-#list containing hospitals this is returned 
-class SearchResponse(BaseModel):
-    hospitals: List[HospitalResponse]
 
 app = FastAPI()
 
-#CORS middleware setup
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000"],
@@ -33,16 +15,31 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+class Location(BaseModel):
+    latitude: float
+    longitude: float
+
+class HospitalResponse(BaseModel):
+    name: str
+    address: str
+    rating: Optional[float]
+    user_ratings_total: Optional[int]
+    photo_url: Optional[str]
+    place_id: str
+
+class SearchResponse(BaseModel):
+    hospitals: List[HospitalResponse]
+
 @app.post("/search-hospitals/", response_model=SearchResponse)
 async def search_hospitals(location: Location):
-    # API key
-    api_key = "API KEY"
-    
-    
+    api_key = os.getenv("GOOGLE_PLACES_API_KEY")
+    if not api_key:
+        raise HTTPException(status_code=500, detail="API key not configured")
+
     url = "https://places.googleapis.com/v1/places:searchNearby"
     headers = {
         "X-Goog-Api-Key": api_key,
-        "X-Goog-FieldMask": "places.displayName,places.formattedAddress,places.rating,places.userRatingCount",
+        "X-Goog-FieldMask": "places.displayName,places.formattedAddress,places.rating,places.userRatingCount,places.photos,places.id",
         "Content-Type": "application/json"
     }
     
@@ -59,35 +56,33 @@ async def search_hospitals(location: Location):
             }
         }
     }
-    
-    
+
     async with httpx.AsyncClient() as client:
         try:
             response = await client.post(url, json=payload, headers=headers)
-            
-            
             response.raise_for_status()
             data = response.json()
             
             hospitals = []
             for place in data.get("places", []):
-                try:
-                    hospital = HospitalResponse(
-                        name=place["displayName"]["text"],
-                        address=place.get("formattedAddress", "Address not available"),
-                        rating=place.get("rating"),
-                        user_ratings_total=place.get("userRatingCount")
-                    )
-                    hospitals.append(hospital)
-                except KeyError as e:
-                    print(f"Error processing hospital data: {e}")
-                    print(f"Problem hospital data: {place}")
+                # Get photo reference if available
+                photo_url = None
+                if place.get("photos") and len(place["photos"]) > 0:
+                    photo_url = f"https://places.googleapis.com/v1/{place['photos'][0]['name']}/media?key={api_key}&maxHeightPx=300&maxWidthPx=400"
+
+                hospital = HospitalResponse(
+                    name=place["displayName"]["text"],
+                    address=place.get("formattedAddress", "Address not available"),
+                    rating=place.get("rating"),
+                    user_ratings_total=place.get("userRatingCount"),
+                    photo_url=photo_url,
+                    place_id=place["id"]
+                )
+                hospitals.append(hospital)
             
             return SearchResponse(hospitals=hospitals)
             
         except httpx.HTTPError as e:
-            error_msg = f"Error fetching hospitals: {str(e)}"
-            print(error_msg)
-            print(f"Full error details: {e.__dict__}")
-            raise HTTPException(status_code=500, detail=error_msg)
-
+            raise HTTPException(status_code=500, detail=f"Error fetching hospitals: {str(e)}")
+        except KeyError as e:
+            raise HTTPException(status_code=500, detail=f"Error processing response: {str(e)}")
