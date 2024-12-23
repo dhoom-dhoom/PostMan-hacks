@@ -1,93 +1,80 @@
+# hospitals.py
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-import httpx
-import uvicorn
 from typing import List, Optional
-import json
+import httpx
 
-#Input is Location Coordinates
 class Location(BaseModel):
     latitude: float
     longitude: float
 
-#Atributes of hospitals
 class HospitalResponse(BaseModel):
     name: str
     address: str
-    rating: Optional[float]
-    user_ratings_total: Optional[int]
+    rating: Optional[float] = None
+    user_ratings_total: Optional[int] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    place_id: Optional[str] = None
+    opening_hours: Optional[dict] = None
 
-#list containing hospitals this is returned 
 class SearchResponse(BaseModel):
     hospitals: List[HospitalResponse]
 
-app = FastAPI()
+# Create a FastAPI instance for hospitals
+hospital_app = FastAPI()
 
-#CORS middleware setup
-app.add_middleware(
+hospital_app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=["http://localhost:3000"],  # Adjust based on your frontend domain
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-@app.post("/search-hospitals/", response_model=SearchResponse)
+@hospital_app.post("/search-hospitals/", response_model=SearchResponse)
 async def search_hospitals(location: Location):
-    # API key
-    api_key = "API KEY"
+    api_key = "AIzaSyCTXX53Z7JgUVvMW4Cxy3wrpJt7rByKghg"  # Replace with your actual Google Places API key
+    url = "https://maps.googleapis.com/maps/api/place/nearbysearch/json"
     
-    
-    url = "https://places.googleapis.com/v1/places:searchNearby"
-    headers = {
-        "X-Goog-Api-Key": api_key,
-        "X-Goog-FieldMask": "places.displayName,places.formattedAddress,places.rating,places.userRatingCount",
-        "Content-Type": "application/json"
+    params = {
+        "key": api_key,
+        "location": f"{location.latitude},{location.longitude}",
+        "radius": 5000,  # Radius in meters
+        "type": "hospital"
     }
     
-    payload = {
-        "includedTypes": ["hospital"],
-        "maxResultCount": 10,
-        "locationRestriction": {
-            "circle": {
-                "center": {
-                    "latitude": location.latitude,
-                    "longitude": location.longitude
-                },
-                "radius": 5000.0
-            }
-        }
-    }
-    
-    
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(timeout=30.0) as client:
         try:
-            response = await client.post(url, json=payload, headers=headers)
+            response = await client.get(url, params=params)
             
+            if response.status_code != 200:
+                error_detail = response.json().get("error_message", "Unknown error")
+                raise HTTPException(status_code=response.status_code, detail=f"Google API Error: {error_detail}")
             
-            response.raise_for_status()
             data = response.json()
-            
             hospitals = []
-            for place in data.get("places", []):
-                try:
-                    hospital = HospitalResponse(
-                        name=place["displayName"]["text"],
-                        address=place.get("formattedAddress", "Address not available"),
-                        rating=place.get("rating"),
-                        user_ratings_total=place.get("userRatingCount")
-                    )
-                    hospitals.append(hospital)
-                except KeyError as e:
-                    print(f"Error processing hospital data: {e}")
-                    print(f"Problem hospital data: {place}")
+            
+            for place in data.get("results", []):
+                location_data = place.get("geometry", {}).get("location", {})
+                hospital = HospitalResponse(
+                    name=place.get("name", "Name not available"),
+                    address=place.get("vicinity", "Address not available"),
+                    rating=place.get("rating"),
+                    user_ratings_total=place.get("user_ratings_total"),
+                    latitude=location_data.get("lat"),
+                    longitude=location_data.get("lng"),
+                    place_id=place.get("place_id"),
+                    opening_hours={ 
+                        "open_now": place.get("opening_hours", {}).get("open_now", False)
+                    } if place.get("opening_hours") else None
+                )
+                hospitals.append(hospital)
             
             return SearchResponse(hospitals=hospitals)
-            
+        
         except httpx.HTTPError as e:
-            error_msg = f"Error fetching hospitals: {str(e)}"
-            print(error_msg)
-            print(f"Full error details: {e.__dict__}")
-            raise HTTPException(status_code=500, detail=error_msg)
-
+            raise HTTPException(status_code=500, detail=f"HTTP error: {str(e)}")
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}")
