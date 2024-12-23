@@ -7,11 +7,12 @@ const containerStyle = {
   width: "100%",
   height: "100vh",
 };
+const GOOGLE_API_KEY = process.env.REACT_APP_GOOGLE_API_KEY;
 
 // Wrapper component for loading Google Maps API script
 const MapWrapper = ({ children }) => {
   return (
-    <LoadScript googleMapsApiKey="google_api_key">
+    <LoadScript googleMapsApiKey= {GOOGLE_API_KEY} >
       {children}
     </LoadScript>
   );
