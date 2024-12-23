@@ -177,24 +177,24 @@ def create_event_with_params(event: EventCreateRequest):
         logger.error(f"Error during create-event: {e}")
         raise HTTPException(status_code=500, detail=f"An error occurred: {str(e)}")
 
-@app.delete("/nylas/delete-event/{event_id}")
-def delete_event(event_id: str):
-    try:
-        grant_id = session.get("grant_id")
-        calendar_id = session.get("calendar")
+# @app.delete("/nylas/delete-event/{event_id}")
+# def delete_event(event_id: str):
+#     try:
+#         grant_id = session.get("grant_id")
+#         calendar_id = session.get("calendar")
 
-        if not grant_id or not calendar_id:
-            raise HTTPException(status_code=400, detail="Grant ID or calendar not found. Please authenticate and set the primary calendar first.")
+#         if not grant_id or not calendar_id:
+#             raise HTTPException(status_code=400, detail="Grant ID or calendar not found. Please authenticate and set the primary calendar first.")
 
-        # Use the Nylas API to delete the event
-        response = nylas.events.delete(grant_id, event_id)
+#         # Use the Nylas API to delete the event
+#         response = nylas.events.delete(grant_id, event_id)
 
-        # Check if the response indicates success
-        if response:
-            return JSONResponse(content={"message": f"Event {event_id} deleted successfully."}, media_type="application/json")
-        else:
-            raise HTTPException(status_code=404, detail="Event not found or could not be deleted.")
+#         # Check if the response indicates success
+#         if response:
+#             return JSONResponse(content={"message": f"Event {event_id} deleted successfully."}, media_type="application/json")
+#         else:
+#             raise HTTPException(status_code=404, detail="Event not found or could not be deleted.")
 
-    except Exception as e:
-        logger.error(f"Error during delete-event: {e}")
-        raise HTTPException(status_code=500, detail=f"An error occurred: {str(e)}")
+#     except Exception as e:
+#         logger.error(f"Error during delete-event: {e}")
+#         raise HTTPException(status_code=500, detail=f"An error occurred: {str(e)}")
