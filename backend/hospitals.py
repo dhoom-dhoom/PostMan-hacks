@@ -1,19 +1,9 @@
+# hospitals.py
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-import httpx
-import os
 from typing import List, Optional
-
-app = FastAPI()
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+import httpx
 
 class Location(BaseModel):
     latitude: float
@@ -22,67 +12,69 @@ class Location(BaseModel):
 class HospitalResponse(BaseModel):
     name: str
     address: str
-    rating: Optional[float]
-    user_ratings_total: Optional[int]
-    photo_url: Optional[str]
-    place_id: str
+    rating: Optional[float] = None
+    user_ratings_total: Optional[int] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    place_id: Optional[str] = None
+    opening_hours: Optional[dict] = None
 
 class SearchResponse(BaseModel):
     hospitals: List[HospitalResponse]
 
-@app.post("/search-hospitals/", response_model=SearchResponse)
-async def search_hospitals(location: Location):
-    api_key = os.getenv("GOOGLE_PLACES_API_KEY")
-    if not api_key:
-        raise HTTPException(status_code=500, detail="API key not configured")
+# Create a FastAPI instance for hospitals
+hospital_app = FastAPI()
 
-    url = "https://places.googleapis.com/v1/places:searchNearby"
-    headers = {
-        "X-Goog-Api-Key": api_key,
-        "X-Goog-FieldMask": "places.displayName,places.formattedAddress,places.rating,places.userRatingCount,places.photos,places.id",
-        "Content-Type": "application/json"
+hospital_app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000"],  # Adjust based on your frontend domain
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+@hospital_app.post("/search-hospitals/", response_model=SearchResponse)
+async def search_hospitals(location: Location):
+    api_key = "google_api_key"  # Replace with your actual Google Places API key
+    url = "https://maps.googleapis.com/maps/api/place/nearbysearch/json"
+    
+    params = {
+        "key": api_key,
+        "location": f"{location.latitude},{location.longitude}",
+        "radius": 5000,  # Radius in meters
+        "type": "hospital"
     }
     
-    payload = {
-        "includedTypes": ["hospital"],
-        "maxResultCount": 10,
-        "locationRestriction": {
-            "circle": {
-                "center": {
-                    "latitude": location.latitude,
-                    "longitude": location.longitude
-                },
-                "radius": 5000.0
-            }
-        }
-    }
-
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(timeout=30.0) as client:
         try:
-            response = await client.post(url, json=payload, headers=headers)
-            response.raise_for_status()
-            data = response.json()
+            response = await client.get(url, params=params)
             
+            if response.status_code != 200:
+                error_detail = response.json().get("error_message", "Unknown error")
+                raise HTTPException(status_code=response.status_code, detail=f"Google API Error: {error_detail}")
+            
+            data = response.json()
             hospitals = []
-            for place in data.get("places", []):
-                # Get photo reference if available
-                photo_url = None
-                if place.get("photos") and len(place["photos"]) > 0:
-                    photo_url = f"https://places.googleapis.com/v1/{place['photos'][0]['name']}/media?key={api_key}&maxHeightPx=300&maxWidthPx=400"
-
+            
+            for place in data.get("results", []):
+                location_data = place.get("geometry", {}).get("location", {})
                 hospital = HospitalResponse(
-                    name=place["displayName"]["text"],
-                    address=place.get("formattedAddress", "Address not available"),
+                    name=place.get("name", "Name not available"),
+                    address=place.get("vicinity", "Address not available"),
                     rating=place.get("rating"),
-                    user_ratings_total=place.get("userRatingCount"),
-                    photo_url=photo_url,
-                    place_id=place["id"]
+                    user_ratings_total=place.get("user_ratings_total"),
+                    latitude=location_data.get("lat"),
+                    longitude=location_data.get("lng"),
+                    place_id=place.get("place_id"),
+                    opening_hours={ 
+                        "open_now": place.get("opening_hours", {}).get("open_now", False)
+                    } if place.get("opening_hours") else None
                 )
                 hospitals.append(hospital)
             
             return SearchResponse(hospitals=hospitals)
-            
+        
         except httpx.HTTPError as e:
-            raise HTTPException(status_code=500, detail=f"Error fetching hospitals: {str(e)}")
-        except KeyError as e:
-            raise HTTPException(status_code=500, detail=f"Error processing response: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"HTTP error: {str(e)}")
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}")

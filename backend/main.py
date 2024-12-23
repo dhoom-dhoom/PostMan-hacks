@@ -1,11 +1,10 @@
+# main.py
 from fastapi import FastAPI
+from hospitals import hospital_app  # Import the FastAPI app from hospitals.py
 
+# Create the main FastAPI app
 app = FastAPI()
 
-@app.get("/")
-def read_root():
-    return {"message": "Hello from FastAPI!"}
+# Mount the hospital app under the /hospitals route
+app.mount("/hospitals", hospital_app)  # This will mount the hospital app under the /hospitals endpoint
 
-@app.get("/health")
-def health_check():
-    return {"status": "ok"}
