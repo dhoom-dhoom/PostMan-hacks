@@ -35,7 +35,7 @@ hospital_app.add_middleware(
 
 @hospital_app.post("/search-hospitals/", response_model=SearchResponse)
 async def search_hospitals(location: Location):
-    api_key = "AIzaSyCTXX53Z7JgUVvMW4Cxy3wrpJt7rByKghg"  # Replace with your actual Google Places API key
+    api_key = "google_api_key"  # Replace with your actual Google Places API key
     url = "https://maps.googleapis.com/maps/api/place/nearbysearch/json"
     
     params = {
