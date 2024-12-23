@@ -155,7 +155,10 @@ def create_event_with_params(event: EventCreateRequest):
         calendar_id = session.get("calendar")
 
         if not grant_id or not calendar_id:
-            raise HTTPException(status_code=400, detail="Grant ID or calendar not found. Please authenticate and set the primary calendar first.")
+            raise HTTPException(
+                status_code=400, 
+                detail="Grant ID or calendar not found. Please authenticate and set the primary calendar first."
+            )
 
         request_body = {
             "when": {
@@ -166,35 +169,18 @@ def create_event_with_params(event: EventCreateRequest):
             "description": "This time slot is reserved for patient-related activities.",
         }
 
-        event_response = nylas.events.create(
+        # Create the event
+        nylas_event = nylas.events.create(
             grant_id,
             query_params={"calendar_id": calendar_id},
             request_body=request_body,
         )
 
-        return JSONResponse(content=event_response, media_type="application/json")
+        # Convert the event object to a JSON-serializable format
+        return JSONResponse(content=nylas_event.as_json(), media_type="application/json")
     except Exception as e:
         logger.error(f"Error during create-event: {e}")
         raise HTTPException(status_code=500, detail=f"An error occurred: {str(e)}")
 
-# @app.delete("/nylas/delete-event/{event_id}")
-# def delete_event(event_id: str):
-#     try:
-#         grant_id = session.get("grant_id")
-#         calendar_id = session.get("calendar")
 
-#         if not grant_id or not calendar_id:
-#             raise HTTPException(status_code=400, detail="Grant ID or calendar not found. Please authenticate and set the primary calendar first.")
 
-#         # Use the Nylas API to delete the event
-#         response = nylas.events.delete(grant_id, event_id)
-
-#         # Check if the response indicates success
-#         if response:
-#             return JSONResponse(content={"message": f"Event {event_id} deleted successfully."}, media_type="application/json")
-#         else:
-#             raise HTTPException(status_code=404, detail="Event not found or could not be deleted.")
-
-#     except Exception as e:
-#         logger.error(f"Error during delete-event: {e}")
-#         raise HTTPException(status_code=500, detail=f"An error occurred: {str(e)}")
