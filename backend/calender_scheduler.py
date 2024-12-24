@@ -9,6 +9,7 @@ from datetime import datetime, timedelta
 from pydantic import BaseModel
 import logging
 
+
 # Load environment variables from .env file
 load_dotenv()
 
@@ -181,6 +182,53 @@ def create_event_with_params(event: EventCreateRequest):
     except Exception as e:
         logger.error(f"Error during create-event: {e}")
         raise HTTPException(status_code=500, detail=f"An error occurred: {str(e)}")
+    
+# @app.post("nylas/isbusy/")
+# def checkIfBusy(event: EventCreateRequest):
+#     grant_id = session.get("grant_id")
+#     if not grant_id:
+#         raise HTTPException(status_code=400, detail="Grant ID not found in session. Please authenticate first.")
+
+#     try:
+#         calendars, _, _ = nylas.calendars.list(grant_id, {"limit": 5})
+
+#         if not calendars:
+#             raise HTTPException(status_code=404, detail="No calendars found for the authenticated user.")
+
+#         for calendar in calendars:
+#             if calendar.is_primary:
+#                 session["calendar"] = calendar.id
+                
+#     except Exception as e:
+#         logger.error(f"Error retrieving calendars: {e}")
+        
+#     try:
+#         grant_id = session.get("grant_id")
+#         if not grant_id:
+#             raise HTTPException(status_code=400, detail="Grant ID not found in session. Please authenticate first.")
+#         request_body = {
+#         "when": {
+#             "starttime": event.start_time,
+#             "endtime": event.end_time,
+#         }
+#         }
+        
+
+#         calendar_id = session.get("calendar")
+#         if not calendar_id:
+#             raise HTTPException(status_code=400, detail="Primary calendar not found. Please set it first.")
+
+#         query_params = {"calendar_id": calendar_id, "limit": 5}
+#         response = nylas.events.list(grant_id, query_params=query_params)
+#         response.
+#         if not response.data:
+#             raise HTTPException(status_code=404, detail="No events found for the primary calendar.")
+
+
+        
+#     except Exception as e:
+#         logger.error(f"Error during fetching events {e}")
+#         raise HTTPException(status_code=500, detail=f"An error occurred: {str(e)}")
 
 
 
