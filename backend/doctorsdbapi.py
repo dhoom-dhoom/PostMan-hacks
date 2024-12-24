@@ -4,7 +4,7 @@ from pydantic import BaseModel
 from typing import List
 
 # Initialize Firebase
-cred = credentials.Certificate("C:\\Users\\ayush\\OneDrive\\Documents\\nylas_setup\\bitshackathon-564f0-firebase-adminsdk-k32o9-64eac88ab0.json")
+cred = credentials.Certificate("path to firebase sdk json")  
 initialize_app(cred)
 
 db = firestore.client()
